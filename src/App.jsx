@@ -1,4 +1,13 @@
+import { useState } from 'react'
 import './App.css'
+
+const EMPTY_FORM = {
+  date: '',
+  startTime: '',
+  endTime: '',
+  cashTips: '',
+  creditTips: '',
+}
 
 function SummaryCard({ label, value, detail, accent }) {
   return (
@@ -15,7 +24,34 @@ function SummaryCard({ label, value, detail, accent }) {
   )
 }
 
-function ShiftForm() {
+function ShiftForm({ onAddShift }) {
+  const [formData, setFormData] = useState(EMPTY_FORM)
+
+  function handleInputChange(event) {
+    const { name, value } = event.target
+
+    setFormData((currentFormData) => ({
+      ...currentFormData,
+      [name]: value,
+    }))
+  }
+
+  function handleSubmit(event) {
+    event.preventDefault()
+
+    const newShift = {
+      id: crypto.randomUUID(),
+      date: formData.date,
+      startTime: formData.startTime,
+      endTime: formData.endTime,
+      cashTips: Number(formData.cashTips),
+      creditTips: Number(formData.creditTips),
+    }
+
+    onAddShift(newShift)
+    setFormData(EMPTY_FORM)
+  }
+
   return (
     <section className="panel shift-form-panel" aria-labelledby="add-shift-title">
       <div className="section-heading">
@@ -26,27 +62,54 @@ function ShiftForm() {
         <span className="draft-badge">Draft</span>
       </div>
 
-      <form className="shift-form">
+      <form className="shift-form" onSubmit={handleSubmit}>
         <label className="field field-wide">
           <span>Shift date</span>
-          <input type="date" name="date" />
+          <input
+            type="date"
+            name="date"
+            required
+            value={formData.date}
+            onChange={handleInputChange}
+          />
         </label>
 
         <label className="field">
           <span>Clock in</span>
-          <input type="time" name="startTime" />
+          <input
+            type="time"
+            name="startTime"
+            required
+            value={formData.startTime}
+            onChange={handleInputChange}
+          />
         </label>
 
         <label className="field">
           <span>Clock out</span>
-          <input type="time" name="endTime" />
+          <input
+            type="time"
+            name="endTime"
+            required
+            value={formData.endTime}
+            onChange={handleInputChange}
+          />
         </label>
 
         <label className="field">
           <span>Cash tips</span>
           <div className="money-input">
             <span>$</span>
-            <input type="number" name="cashTips" min="0" step="0.01" placeholder="0.00" />
+            <input
+              type="number"
+              name="cashTips"
+              min="0"
+              step="0.01"
+              placeholder="0.00"
+              required
+              value={formData.cashTips}
+              onChange={handleInputChange}
+            />
           </div>
         </label>
 
@@ -54,11 +117,20 @@ function ShiftForm() {
           <span>Credit card tips</span>
           <div className="money-input">
             <span>$</span>
-            <input type="number" name="creditTips" min="0" step="0.01" placeholder="0.00" />
+            <input
+              type="number"
+              name="creditTips"
+              min="0"
+              step="0.01"
+              placeholder="0.00"
+              required
+              value={formData.creditTips}
+              onChange={handleInputChange}
+            />
           </div>
         </label>
 
-        <button className="primary-button" type="button">
+        <button className="primary-button" type="submit">
           Add shift
         </button>
       </form>
@@ -87,6 +159,12 @@ function ShiftHistory() {
 }
 
 function App() {
+  const [shifts, setShifts] = useState([])
+
+  function handleAddShift(newShift) {
+    setShifts((currentShifts) => [...currentShifts, newShift])
+  }
+
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -118,12 +196,17 @@ function App() {
 
         <section className="summary-grid" aria-label="Weekly summary">
           <SummaryCard label="Total tips" value="$0.00" detail="Cash + card" accent="green" />
-          <SummaryCard label="Hours worked" value="0.0" detail="Across 0 shifts" accent="orange" />
+          <SummaryCard
+            label="Hours worked"
+            value="0.0"
+            detail={`Across ${shifts.length} ${shifts.length === 1 ? 'shift' : 'shifts'}`}
+            accent="orange"
+          />
           <SummaryCard label="Tips per hour" value="$0.00" detail="Weekly average" accent="blue" />
         </section>
 
         <div className="content-grid">
-          <ShiftForm />
+          <ShiftForm onAddShift={handleAddShift} />
           <ShiftHistory />
         </div>
       </main>
