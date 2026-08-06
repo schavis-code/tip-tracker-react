@@ -324,6 +324,55 @@
   font-weight: 800;
 }
 
+.shift-list {
+  display: grid;
+  gap: 12px;
+}
+
+.shift-item {
+  padding: 17px 18px;
+  display: grid;
+  grid-template-columns: 1.2fr 1fr auto;
+  align-items: center;
+  gap: 18px;
+  background: #fafbf9;
+  border: 1px solid #e0e6e1;
+  border-radius: 14px;
+}
+
+.shift-date,
+.shift-total {
+  display: grid;
+  gap: 3px;
+}
+
+.shift-date strong,
+.shift-total strong {
+  color: #263a30;
+  font-size: 14px;
+}
+
+.shift-date span,
+.shift-total span,
+.shift-tip-details span {
+  color: #7a877f;
+  font-size: 12px;
+}
+
+.shift-tip-details {
+  display: grid;
+  gap: 4px;
+}
+
+.shift-total {
+  text-align: right;
+}
+
+.shift-total strong {
+  color: #1e6748;
+  font-size: 16px;
+}
+
 .empty-state {
   min-height: 272px;
   padding: 38px 24px;
@@ -416,5 +465,17 @@
   .field-wide,
   .primary-button {
     grid-column: auto;
+  }
+
+  .shift-item {
+    grid-template-columns: 1fr auto;
+  }
+
+  .shift-tip-details {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    grid-template-columns: auto auto;
+    justify-content: start;
+    gap: 12px;
   }
 }

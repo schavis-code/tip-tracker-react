@@ -138,7 +138,35 @@ function ShiftForm({ onAddShift }) {
   )
 }
 
-function ShiftHistory() {
+function ShiftItem({ shift }) {
+  const totalTips = shift.cashTips + shift.creditTips
+  const formattedDate = new Date(`${shift.date}T00:00:00`).toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  })
+
+  return (
+    <article className="shift-item">
+      <div className="shift-date">
+        <strong>{formattedDate}</strong>
+        <span>{shift.startTime} – {shift.endTime}</span>
+      </div>
+
+      <div className="shift-tip-details">
+        <span>Cash ${shift.cashTips.toFixed(2)}</span>
+        <span>Card ${shift.creditTips.toFixed(2)}</span>
+      </div>
+
+      <div className="shift-total">
+        <span>Total tips</span>
+        <strong>${totalTips.toFixed(2)}</strong>
+      </div>
+    </article>
+  )
+}
+
+function ShiftHistory({ shifts }) {
   return (
     <section className="panel history-panel" aria-labelledby="shift-history-title">
       <div className="section-heading">
@@ -149,11 +177,19 @@ function ShiftHistory() {
         <button className="text-button" type="button">View all</button>
       </div>
 
-      <div className="empty-state">
-        <div className="empty-icon" aria-hidden="true">☕</div>
-        <h3>No shifts recorded yet</h3>
-        <p>Your shifts will appear here after you add your first one.</p>
-      </div>
+      {shifts.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-icon" aria-hidden="true">☕</div>
+          <h3>No shifts recorded yet</h3>
+          <p>Your shifts will appear here after you add your first one.</p>
+        </div>
+      ) : (
+        <div className="shift-list">
+          {shifts.map((shift) => (
+            <ShiftItem key={shift.id} shift={shift} />
+          ))}
+        </div>
+      )}
     </section>
   )
 }
@@ -207,7 +243,7 @@ function App() {
 
         <div className="content-grid">
           <ShiftForm onAddShift={handleAddShift} />
-          <ShiftHistory />
+          <ShiftHistory shifts={shifts} />
         </div>
       </main>
     </div>
