@@ -9,6 +9,20 @@ const EMPTY_FORM = {
   creditTips: '',
 }
 
+function calculateShiftHours(startTime, endTime) {
+  const [startHour, startMinute] = startTime.split(':').map(Number)
+  const [endHour, endMinute] = endTime.split(':').map(Number)
+
+  const startInMinutes = startHour * 60 + startMinute
+  let endInMinutes = endHour * 60 + endMinute
+
+  if (endInMinutes < startInMinutes) {
+    endInMinutes += 24 * 60
+  }
+
+  return (endInMinutes - startInMinutes) / 60
+}
+
 function SummaryCard({ label, value, detail, accent }) {
   return (
     <article className="summary-card">
@@ -197,6 +211,18 @@ function ShiftHistory({ shifts }) {
 function App() {
   const [shifts, setShifts] = useState([])
 
+  const totalTips = shifts.reduce(
+    (sum, shift) => sum + shift.cashTips + shift.creditTips,
+    0,
+  )
+
+  const totalHours = shifts.reduce(
+    (sum, shift) => sum + calculateShiftHours(shift.startTime, shift.endTime),
+    0,
+  )
+
+  const tipsPerHour = totalHours > 0 ? totalTips / totalHours : 0
+
   function handleAddShift(newShift) {
     setShifts((currentShifts) => [...currentShifts, newShift])
   }
@@ -231,14 +257,24 @@ function App() {
         </section>
 
         <section className="summary-grid" aria-label="Weekly summary">
-          <SummaryCard label="Total tips" value="$0.00" detail="Cash + card" accent="green" />
+          <SummaryCard
+            label="Total tips"
+            value={`$${totalTips.toFixed(2)}`}
+            detail="Cash + card"
+            accent="green"
+          />
           <SummaryCard
             label="Hours worked"
-            value="0.0"
+            value={totalHours.toFixed(1)}
             detail={`Across ${shifts.length} ${shifts.length === 1 ? 'shift' : 'shifts'}`}
             accent="orange"
           />
-          <SummaryCard label="Tips per hour" value="$0.00" detail="Weekly average" accent="blue" />
+          <SummaryCard
+            label="Tips per hour"
+            value={`$${tipsPerHour.toFixed(2)}`}
+            detail="Weekly average"
+            accent="blue"
+          />
         </section>
 
         <div className="content-grid">
