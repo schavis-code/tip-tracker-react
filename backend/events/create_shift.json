@@ -1,0 +1,13 @@
+{
+  "requestContext": {
+    "http": {
+      "method": "POST",
+      "path": "/shifts"
+    }
+  },
+  "headers": {
+    "content-type": "application/json"
+  },
+  "body": "{\"date\": \"2026-08-11\", \"startTime\": \"16:00\", \"endTime\": \"22:30\", \"cashTips\": 35.0, \"creditTips\": 120.5}",
+  "isBase64Encoded": false
+}
