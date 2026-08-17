@@ -36,6 +36,36 @@ class TestCreateShift(unittest.TestCase):
         for field, expected_value in shift_data.items():
             self.assertEqual(returned_shift[field], expected_value)
 
+    def test_missing_body_returns_bad_request(self):
+        """A request without a body should return a clear error."""
+        response = lambda_handler({}, None)
+        response_body = json.loads(response["body"])
+
+        self.assertEqual(response["statusCode"], 400)
+        self.assertEqual(response_body, {"error": "Request body is required"})
+
+    def test_malformed_json_returns_bad_request(self):
+        """A request with invalid JSON should return a clear error."""
+        response = lambda_handler({"body": "{"}, None)
+        response_body = json.loads(response["body"])
+
+        self.assertEqual(response["statusCode"], 400)
+        self.assertEqual(
+            response_body,
+            {"error": "Request body must contain valid JSON"},
+        )
+
+    def test_non_object_json_returns_bad_request(self):
+        """A JSON value that is not an object should return a clear error."""
+        response = lambda_handler({"body": "[]"}, None)
+        response_body = json.loads(response["body"])
+
+        self.assertEqual(response["statusCode"], 400)
+        self.assertEqual(
+            response_body,
+            {"error": "Request body must be a JSON object"},
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
