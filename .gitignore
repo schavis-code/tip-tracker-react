@@ -26,3 +26,6 @@ dist-ssr
 # Python-generated files
 __pycache__/
 *.py[cod]
+
+# AWS SAM build artifacts
+.aws-sam/
