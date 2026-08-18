@@ -10,15 +10,19 @@ from backend.src.create_shift.app import lambda_handler
 class TestCreateShift(unittest.TestCase):
     """Test the behavior of the create-shift Lambda."""
 
-    def test_valid_shift_returns_created_shift(self):
-        """A valid request should return the newly created shift."""
-        shift_data = {
+    def make_valid_shift(self):
+        """Return valid shift data that individual tests can modify."""
+        return {
             "date": "2026-08-13",
             "startTime": "16:00",
             "endTime": "22:30",
             "cashTips": 35.0,
             "creditTips": 120.5,
         }
+
+    def test_valid_shift_returns_created_shift(self):
+        """A valid request should return the newly created shift."""
+        shift_data = self.make_valid_shift()
         event = {"body": json.dumps(shift_data)}
 
         response = lambda_handler(event, None)
@@ -65,6 +69,82 @@ class TestCreateShift(unittest.TestCase):
             response_body,
             {"error": "Request body must be a JSON object"},
         )
+
+    def test_missing_required_field_returns_bad_request(self):
+        """A shift missing a required field should identify that field."""
+        shift_data = self.make_valid_shift()
+        del shift_data["date"]
+
+        response = lambda_handler({"body": json.dumps(shift_data)}, None)
+        response_body = json.loads(response["body"])
+
+        self.assertEqual(response["statusCode"], 400)
+        self.assertEqual(
+            response_body,
+            {"error": "Missing required fields: date"},
+        )
+
+    def test_invalid_date_format_returns_bad_request(self):
+        """A date must use the YYYY-MM-DD format."""
+        shift_data = self.make_valid_shift()
+        shift_data["date"] = "08/13/2026"
+
+        response = lambda_handler({"body": json.dumps(shift_data)}, None)
+        response_body = json.loads(response["body"])
+
+        self.assertEqual(response["statusCode"], 400)
+        self.assertEqual(
+            response_body,
+            {"error": "date must use YYYY-MM-DD format"},
+        )
+
+    def test_invalid_time_format_returns_bad_request(self):
+        """Start and end times must use the 24-hour HH:MM format."""
+        for field in ("startTime", "endTime"):
+            with self.subTest(field=field):
+                shift_data = self.make_valid_shift()
+                shift_data[field] = "4:30 PM"
+
+                response = lambda_handler({"body": json.dumps(shift_data)}, None)
+                response_body = json.loads(response["body"])
+
+                self.assertEqual(response["statusCode"], 400)
+                self.assertEqual(
+                    response_body,
+                    {"error": f"{field} must use HH:MM format"},
+                )
+
+    def test_nonnumeric_tips_return_bad_request(self):
+        """Cash and credit tips must be numbers."""
+        for field in ("cashTips", "creditTips"):
+            with self.subTest(field=field):
+                shift_data = self.make_valid_shift()
+                shift_data[field] = "twenty"
+
+                response = lambda_handler({"body": json.dumps(shift_data)}, None)
+                response_body = json.loads(response["body"])
+
+                self.assertEqual(response["statusCode"], 400)
+                self.assertEqual(
+                    response_body,
+                    {"error": f"{field} must be a number"},
+                )
+
+    def test_negative_tips_return_bad_request(self):
+        """Cash and credit tips cannot be negative."""
+        for field in ("cashTips", "creditTips"):
+            with self.subTest(field=field):
+                shift_data = self.make_valid_shift()
+                shift_data[field] = -1
+
+                response = lambda_handler({"body": json.dumps(shift_data)}, None)
+                response_body = json.loads(response["body"])
+
+                self.assertEqual(response["statusCode"], 400)
+                self.assertEqual(
+                    response_body,
+                    {"error": f"{field} cannot be negative"},
+                )
 
 
 if __name__ == "__main__":
