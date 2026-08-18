@@ -4,7 +4,7 @@ import json
 import unittest
 from uuid import UUID
 
-from backend.src.create_shift.app import lambda_handler
+from backend.src.create_shift.create_shift import lambda_handler
 
 
 class TestCreateShift(unittest.TestCase):
