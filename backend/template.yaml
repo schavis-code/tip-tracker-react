@@ -9,3 +9,14 @@ Resources:
       CodeUri: src/create_shift/
       Handler: create_shift.lambda_handler
       Runtime: python3.14
+      Events:
+        CreateShiftApi:
+          Type: Api
+          Properties:
+            Path: /shifts
+            Method: post
+
+Outputs:
+  CreateShiftApiUrl:
+    Description: URL for creating shifts
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod/shifts"
