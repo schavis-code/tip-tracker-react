@@ -1,8 +1,12 @@
 """Lambda handler for creating a restaurant shift."""
 
 import json
+import os
 from datetime import datetime
+from decimal import Decimal
 from uuid import uuid4
+
+import boto3
 
 
 REQUIRED_FIELDS = (
@@ -60,6 +64,19 @@ def validate_shift(shift):
     return None
 
 
+def save_shift(shift):
+    """Save a shift in the DynamoDB table configured for this Lambda."""
+    table_name = os.environ["SHIFTS_TABLE"]
+    table = boto3.resource("dynamodb").Table(table_name)
+    item = {
+        **shift,
+        "cashTips": Decimal(str(shift["cashTips"])),
+        "creditTips": Decimal(str(shift["creditTips"])),
+    }
+
+    table.put_item(Item=item)
+
+
 def lambda_handler(event, context):
     """Validate incoming data and return a newly created shift."""
     if not event.get("body"):
@@ -86,5 +103,7 @@ def lambda_handler(event, context):
         "cashTips": request_body["cashTips"],
         "creditTips": request_body["creditTips"],
     }
+
+    save_shift(shift)
 
     return create_response(201, {"shift": shift})

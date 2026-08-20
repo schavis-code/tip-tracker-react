@@ -2,9 +2,11 @@
 
 import json
 import unittest
+from decimal import Decimal
+from unittest.mock import patch
 from uuid import UUID
 
-from backend.src.create_shift.create_shift import lambda_handler
+from backend.src.create_shift.create_shift import lambda_handler, save_shift
 
 
 class TestCreateShift(unittest.TestCase):
@@ -20,7 +22,8 @@ class TestCreateShift(unittest.TestCase):
             "creditTips": 120.5,
         }
 
-    def test_valid_shift_returns_created_shift(self):
+    @patch("backend.src.create_shift.create_shift.save_shift")
+    def test_valid_shift_returns_created_shift(self, mock_save_shift):
         """A valid request should return the newly created shift."""
         shift_data = self.make_valid_shift()
         event = {"body": json.dumps(shift_data)}
@@ -39,6 +42,46 @@ class TestCreateShift(unittest.TestCase):
 
         for field, expected_value in shift_data.items():
             self.assertEqual(returned_shift[field], expected_value)
+
+        mock_save_shift.assert_called_once_with(returned_shift)
+
+    @patch.dict(
+        "backend.src.create_shift.create_shift.os.environ",
+        {"SHIFTS_TABLE": "test-shifts-table"},
+        clear=True,
+    )
+    @patch("backend.src.create_shift.create_shift.boto3.resource")
+    def test_save_shift_writes_item_to_dynamodb(self, mock_resource):
+        """Saving a shift should write a DynamoDB-compatible item."""
+        shift = {
+            "id": "test-shift-id",
+            **self.make_valid_shift(),
+        }
+        mock_dynamodb = mock_resource.return_value
+        mock_table = mock_dynamodb.Table.return_value
+
+        save_shift(shift)
+
+        mock_resource.assert_called_once_with("dynamodb")
+        mock_dynamodb.Table.assert_called_once_with("test-shifts-table")
+        mock_table.put_item.assert_called_once_with(
+            Item={
+                **shift,
+                "cashTips": Decimal("35.0"),
+                "creditTips": Decimal("120.5"),
+            }
+        )
+
+    @patch("backend.src.create_shift.create_shift.save_shift")
+    def test_invalid_shift_is_not_saved(self, mock_save_shift):
+        """A shift that fails validation should not be written."""
+        shift_data = self.make_valid_shift()
+        del shift_data["date"]
+
+        response = lambda_handler({"body": json.dumps(shift_data)}, None)
+
+        self.assertEqual(response["statusCode"], 400)
+        mock_save_shift.assert_not_called()
 
     def test_missing_body_returns_bad_request(self):
         """A request without a body should return a clear error."""

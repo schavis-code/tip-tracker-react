@@ -3,12 +3,37 @@ Transform: AWS::Serverless-2016-10-31
 Description: Serverless backend for the restaurant shift tracker
 
 Resources:
+  ShiftsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      SSESpecification:
+        SSEEnabled: true
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+
   CreateShiftFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: src/create_shift/
       Handler: create_shift.lambda_handler
       Runtime: python3.14
+      Environment:
+        Variables:
+          SHIFTS_TABLE: !Ref ShiftsTable
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:PutItem
+              Resource: !GetAtt ShiftsTable.Arn
       Events:
         CreateShiftApi:
           Type: Api
