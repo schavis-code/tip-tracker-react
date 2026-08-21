@@ -1,12 +1,49 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: Serverless backend for the restaurant shift tracker
+Description: Restaurant shift tracker backend with an explicit REST API, Lambda, and DynamoDB persistence
+
+Metadata:
+  AWSToolsMetrics:
+    AWSAgentToolkit: "aws-cloudformation@2"
+  "com.aws.cloudformation.Context":
+    arch: React -> REST API -> Lambda -> DynamoDB
+    must:
+      - ShiftTrackerApi owns the Prod stage, CORS cfg, and /shifts route
+
+Parameters:
+  AllowedOrigin:
+    Type: String
+    Default: http://localhost:5173
 
 Resources:
+  ShiftTrackerApi:
+    Type: AWS::Serverless::Api
+    Metadata:
+      "com.aws.cloudformation.Context":
+        why: explicit Regional REST API keeps stage, CORS, and route ownership visible; own CloudFront can be added later
+        must:
+          - CreateShiftApi event keeps RestApiId ref to this resource
+        mutable: change-with-constraints
+    Properties:
+      Name: !Sub "${AWS::StackName}-shift-tracker-api"
+      StageName: Prod
+      EndpointConfiguration: REGIONAL
+      Cors:
+        AllowMethods: "'POST,OPTIONS'"
+        AllowHeaders: "'Content-Type'"
+        AllowOrigin: !Sub "'${AllowedOrigin}'"
+
   ShiftsTable:
     Type: AWS::DynamoDB::Table
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
+    Metadata:
+      "com.aws.cloudformation.Context":
+        why: durable shift storage; on-demand billing fits variable learning-app traffic
+        must:
+          - id remains string partition key
+          - retain table on stack delete or replacement
+        mutable: change-with-constraints
     Properties:
       BillingMode: PAY_PER_REQUEST
       SSESpecification:
@@ -20,6 +57,13 @@ Resources:
 
   CreateShiftFunction:
     Type: AWS::Serverless::Function
+    Metadata:
+      "com.aws.cloudformation.Context":
+        why: validates + creates shifts; synchronous REST integration writes accepted items to DynamoDB
+        must:
+          - table name comes from ShiftsTable ref
+          - DynamoDB permission stays scoped to PutItem on ShiftsTable
+        mutable: change-with-constraints
     Properties:
       CodeUri: src/create_shift/
       Handler: create_shift.lambda_handler
@@ -27,6 +71,7 @@ Resources:
       Environment:
         Variables:
           SHIFTS_TABLE: !Ref ShiftsTable
+          ALLOWED_ORIGIN: !Ref AllowedOrigin
       Policies:
         - Version: "2012-10-17"
           Statement:
@@ -40,8 +85,9 @@ Resources:
           Properties:
             Path: /shifts
             Method: post
+            RestApiId: !Ref ShiftTrackerApi
 
 Outputs:
   CreateShiftApiUrl:
     Description: URL for creating shifts
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod/shifts"
+    Value: !Sub "https://${ShiftTrackerApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod/shifts"
