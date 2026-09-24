@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import './App.css'
 
+const API_URL = import.meta.env.VITE_API_URL
+
 const EMPTY_FORM = {
   date: '',
   startTime: '',
@@ -23,6 +25,7 @@ function calculateShiftHours(startTime, endTime) {
   return (endInMinutes - startInMinutes) / 60
 }
 
+// Displays one dashboard statistic, such as total tips or hours worked.
 function SummaryCard({ label, value, detail, accent }) {
   return (
     <article className="summary-card">
@@ -38,6 +41,7 @@ function SummaryCard({ label, value, detail, accent }) {
   )
 }
 
+// Collects the user's shift details and sends the completed form data to App.
 function ShiftForm({ onAddShift }) {
   const [formData, setFormData] = useState(EMPTY_FORM)
 
@@ -50,11 +54,10 @@ function ShiftForm({ onAddShift }) {
     }))
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault()
 
     const newShift = {
-      id: crypto.randomUUID(),
       date: formData.date,
       startTime: formData.startTime,
       endTime: formData.endTime,
@@ -62,8 +65,12 @@ function ShiftForm({ onAddShift }) {
       creditTips: Number(formData.creditTips),
     }
 
-    onAddShift(newShift)
-    setFormData(EMPTY_FORM)
+    try {
+      await onAddShift(newShift)
+      setFormData(EMPTY_FORM)
+    } catch (error) {
+      console.error('Unable to add shift:', error)
+    }
   }
 
   return (
@@ -152,6 +159,7 @@ function ShiftForm({ onAddShift }) {
   )
 }
 
+// Displays the date, times, and tip totals for one saved shift.
 function ShiftItem({ shift }) {
   const totalTips = shift.cashTips + shift.creditTips
   const formattedDate = new Date(`${shift.date}T00:00:00`).toLocaleDateString('en-US', {
@@ -180,6 +188,7 @@ function ShiftItem({ shift }) {
   )
 }
 
+// Displays the list of saved shifts, or an empty message when none exist.
 function ShiftHistory({ shifts }) {
   return (
     <section className="panel history-panel" aria-labelledby="shift-history-title">
@@ -208,6 +217,7 @@ function ShiftHistory({ shifts }) {
   )
 }
 
+// Owns the shift data, communicates with the AWS API, and assembles the dashboard.
 function App() {
   const [shifts, setShifts] = useState([])
 
@@ -223,8 +233,26 @@ function App() {
 
   const tipsPerHour = totalHours > 0 ? totalTips / totalHours : 0
 
-  function handleAddShift(newShift) {
-    setShifts((currentShifts) => [...currentShifts, newShift])
+  async function handleAddShift(newShift) {
+    if (!API_URL) {
+      throw new Error('VITE_API_URL is not configured')
+    }
+
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(newShift),
+    })
+
+    const responseData = await response.json()
+
+    if (!response.ok) {
+      throw new Error(responseData.error || 'Unable to save shift')
+    }
+
+    setShifts((currentShifts) => [...currentShifts, responseData.shift])
   }
 
   return (
