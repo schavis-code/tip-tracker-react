@@ -44,6 +44,8 @@ function SummaryCard({ label, value, detail, accent }) {
 // Collects the user's shift details and sends the completed form data to App.
 function ShiftForm({ onAddShift }) {
   const [formData, setFormData] = useState(EMPTY_FORM)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
 
   function handleInputChange(event) {
     const { name, value } = event.target
@@ -57,6 +59,13 @@ function ShiftForm({ onAddShift }) {
   async function handleSubmit(event) {
     event.preventDefault()
 
+    if (isSubmitting) {
+      return
+    }
+
+    setIsSubmitting(true)
+    setErrorMessage('')
+
     const newShift = {
       date: formData.date,
       startTime: formData.startTime,
@@ -69,7 +78,9 @@ function ShiftForm({ onAddShift }) {
       await onAddShift(newShift)
       setFormData(EMPTY_FORM)
     } catch (error) {
-      console.error('Unable to add shift:', error)
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to add shift')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -151,8 +162,14 @@ function ShiftForm({ onAddShift }) {
           </div>
         </label>
 
-        <button className="primary-button" type="submit">
-          Add shift
+        {errorMessage && (
+          <p className="form-error" role="alert">
+            {errorMessage}
+          </p>
+        )}
+
+        <button className="primary-button" type="submit" disabled={isSubmitting}>
+          {isSubmitting ? 'Saving...' : 'Add shift'}
         </button>
       </form>
     </section>
