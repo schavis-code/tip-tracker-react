@@ -27,7 +27,8 @@ Resources:
     Properties:
       Name: !Sub "${AWS::StackName}-shift-tracker-api"
       StageName: Prod
-      EndpointConfiguration: REGIONAL
+      EndpointConfiguration:
+        Type: REGIONAL
       Cors:
         AllowMethods: "'POST,OPTIONS'"
         AllowHeaders: "'Content-Type'"
