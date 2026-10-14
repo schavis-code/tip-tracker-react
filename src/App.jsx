@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import './App.css'
 
 const API_URL = import.meta.env.VITE_API_URL
@@ -205,8 +205,8 @@ function ShiftItem({ shift }) {
   )
 }
 
-// Displays the list of saved shifts, or an empty message when none exist.
-function ShiftHistory({ shifts }) {
+// Displays the loading, error, empty, or saved-shift state of the history panel.
+function ShiftHistory({ shifts, isLoading, errorMessage }) {
   return (
     <section className="panel history-panel" aria-labelledby="shift-history-title">
       <div className="section-heading">
@@ -217,7 +217,18 @@ function ShiftHistory({ shifts }) {
         <button className="text-button" type="button">View all</button>
       </div>
 
-      {shifts.length === 0 ? (
+      {isLoading ? (
+        <div className="empty-state" aria-live="polite">
+          <h3>Loading shifts...</h3>
+          <p>Retrieving your saved shifts from AWS.</p>
+        </div>
+      ) : errorMessage ? (
+        <div className="empty-state" role="alert">
+          <div className="empty-icon" aria-hidden="true">!</div>
+          <h3>Unable to load shifts</h3>
+          <p>{errorMessage}</p>
+        </div>
+      ) : shifts.length === 0 ? (
         <div className="empty-state">
           <div className="empty-icon" aria-hidden="true">☕</div>
           <h3>No shifts recorded yet</h3>
@@ -237,6 +248,42 @@ function ShiftHistory({ shifts }) {
 // Owns the shift data, communicates with the AWS API, and assembles the dashboard.
 function App() {
   const [shifts, setShifts] = useState([])
+  const [isLoadingShifts, setIsLoadingShifts] = useState(true)
+  const [shiftLoadError, setShiftLoadError] = useState('')
+
+  // Load saved shifts from AWS once when the application starts.
+  useEffect(() => {
+    async function loadShifts() {
+      if (!API_URL) {
+        setShiftLoadError('VITE_API_URL is not configured')
+        setIsLoadingShifts(false)
+        return
+      }
+
+      try {
+        const response = await fetch(API_URL)
+        const responseData = await response.json()
+
+        if (!response.ok) {
+          throw new Error(responseData.error || 'Unable to load shifts')
+        }
+
+        if (!Array.isArray(responseData.shifts)) {
+          throw new Error('The API returned an invalid shift list')
+        }
+
+        setShifts(responseData.shifts)
+      } catch (error) {
+        setShiftLoadError(
+          error instanceof Error ? error.message : 'Unable to load shifts',
+        )
+      } finally {
+        setIsLoadingShifts(false)
+      }
+    }
+
+    loadShifts()
+  }, [])
 
   const totalTips = shifts.reduce(
     (sum, shift) => sum + shift.cashTips + shift.creditTips,
@@ -269,7 +316,7 @@ function App() {
       throw new Error(responseData.error || 'Unable to save shift')
     }
 
-    setShifts((currentShifts) => [...currentShifts, responseData.shift])
+    setShifts((currentShifts) => [responseData.shift, ...currentShifts])
   }
 
   return (
@@ -324,7 +371,11 @@ function App() {
 
         <div className="content-grid">
           <ShiftForm onAddShift={handleAddShift} />
-          <ShiftHistory shifts={shifts} />
+          <ShiftHistory
+            shifts={shifts}
+            isLoading={isLoadingShifts}
+            errorMessage={shiftLoadError}
+          />
         </div>
       </main>
     </div>
