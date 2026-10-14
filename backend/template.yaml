@@ -6,7 +6,7 @@ Metadata:
   AWSToolsMetrics:
     AWSAgentToolkit: "aws-cloudformation@2"
   "com.aws.cloudformation.Context":
-    arch: React -> REST API -> Lambda -> DynamoDB
+    arch: React -> REST API -> create/get Lambdas -> DynamoDB
     must:
       - ShiftTrackerApi owns the Prod stage, CORS cfg, and /shifts route
 
@@ -22,7 +22,7 @@ Resources:
       "com.aws.cloudformation.Context":
         why: explicit Regional REST API keeps stage, CORS, and route ownership visible; own CloudFront can be added later
         must:
-          - CreateShiftApi event keeps RestApiId ref to this resource
+          - CreateShiftApi + GetShiftsApi events keep RestApiId ref to this resource
         mutable: change-with-constraints
     Properties:
       Name: !Sub "${AWS::StackName}-shift-tracker-api"
@@ -30,7 +30,7 @@ Resources:
       EndpointConfiguration:
         Type: REGIONAL
       Cors:
-        AllowMethods: "'POST,OPTIONS'"
+        AllowMethods: "'GET,POST,OPTIONS'"
         AllowHeaders: "'Content-Type'"
         AllowOrigin: !Sub "'${AllowedOrigin}'"
 
@@ -88,7 +88,39 @@ Resources:
             Method: post
             RestApiId: !Ref ShiftTrackerApi
 
+  GetShiftsFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      "com.aws.cloudformation.Context":
+        why: lists shifts for dashboard startup; paginated scan avoids 1 MB truncation for current single-user MVP
+        must:
+          - table name comes from ShiftsTable ref
+          - DynamoDB permission stays scoped to Scan on ShiftsTable
+        mutable: change-with-constraints
+    Properties:
+      CodeUri: src/get_shifts/
+      Handler: get_shifts.lambda_handler
+      Runtime: python3.14
+      Environment:
+        Variables:
+          SHIFTS_TABLE: !Ref ShiftsTable
+          ALLOWED_ORIGIN: !Ref AllowedOrigin
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:Scan
+              Resource: !GetAtt ShiftsTable.Arn
+      Events:
+        GetShiftsApi:
+          Type: Api
+          Properties:
+            Path: /shifts
+            Method: get
+            RestApiId: !Ref ShiftTrackerApi
+
 Outputs:
   CreateShiftApiUrl:
-    Description: URL for creating shifts
+    Description: URL for creating and retrieving shifts
     Value: !Sub "https://${ShiftTrackerApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod/shifts"
