@@ -20,9 +20,14 @@ REQUIRED_FIELDS = (
 
 def create_response(status_code, body):
     """Create an API Gateway-compatible HTTP response."""
+    allowed_origin = os.environ.get("ALLOWED_ORIGIN", "http://localhost:5173")
+
     return {
         "statusCode": status_code,
-        "headers": {"Content-Type": "application/json"},
+        "headers": {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": allowed_origin,
+        },
         "body": json.dumps(body),
     }
 

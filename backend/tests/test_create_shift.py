@@ -34,6 +34,10 @@ class TestCreateShift(unittest.TestCase):
 
         self.assertEqual(response["statusCode"], 201)
         self.assertEqual(response["headers"]["Content-Type"], "application/json")
+        self.assertEqual(
+            response["headers"]["Access-Control-Allow-Origin"],
+            "http://localhost:5173",
+        )
         self.assertEqual(set(response_body), {"shift"})
         self.assertEqual(set(returned_shift), set(shift_data) | {"id"})
 

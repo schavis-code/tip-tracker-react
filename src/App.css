@@ -307,12 +307,28 @@
   transition: background 160ms ease, transform 160ms ease;
 }
 
-.primary-button:hover {
+.primary-button:hover:not(:disabled) {
   background: #16583c;
 }
 
-.primary-button:active {
+.primary-button:active:not(:disabled) {
   transform: translateY(1px);
+}
+
+.primary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.form-error {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 10px 12px;
+  color: #8a2d2d;
+  background: #fff0f0;
+  border: 1px solid #efc5c5;
+  border-radius: 10px;
+  font-size: 13px;
 }
 
 .text-button {
@@ -332,7 +348,7 @@
 .shift-item {
   padding: 17px 18px;
   display: grid;
-  grid-template-columns: 1.2fr 1fr auto;
+  grid-template-columns: 1.2fr 1fr auto auto;
   align-items: center;
   gap: 18px;
   background: #fafbf9;
@@ -371,6 +387,36 @@
 .shift-total strong {
   color: #1e6748;
   font-size: 16px;
+}
+
+.delete-button {
+  padding: 7px 10px;
+  color: #8a2d2d;
+  background: #fff0f0;
+  border: 1px solid #efc5c5;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.delete-button:hover:not(:disabled) {
+  background: #fbe2e2;
+}
+
+.delete-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.delete-error {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  color: #8a2d2d;
+  background: #fff0f0;
+  border: 1px solid #efc5c5;
+  border-radius: 10px;
+  font-size: 13px;
 }
 
 .empty-state {

@@ -1,5 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import './App.css'
+
+const API_URL = import.meta.env.VITE_API_URL
 
 const EMPTY_FORM = {
   date: '',
@@ -23,6 +25,7 @@ function calculateShiftHours(startTime, endTime) {
   return (endInMinutes - startInMinutes) / 60
 }
 
+// Displays one dashboard statistic, such as total tips or hours worked.
 function SummaryCard({ label, value, detail, accent }) {
   return (
     <article className="summary-card">
@@ -38,8 +41,11 @@ function SummaryCard({ label, value, detail, accent }) {
   )
 }
 
+// Collects the user's shift details and sends the completed form data to App.
 function ShiftForm({ onAddShift }) {
   const [formData, setFormData] = useState(EMPTY_FORM)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
 
   function handleInputChange(event) {
     const { name, value } = event.target
@@ -50,11 +56,17 @@ function ShiftForm({ onAddShift }) {
     }))
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault()
 
+    if (isSubmitting) {
+      return
+    }
+
+    setIsSubmitting(true)
+    setErrorMessage('')
+
     const newShift = {
-      id: crypto.randomUUID(),
       date: formData.date,
       startTime: formData.startTime,
       endTime: formData.endTime,
@@ -62,8 +74,14 @@ function ShiftForm({ onAddShift }) {
       creditTips: Number(formData.creditTips),
     }
 
-    onAddShift(newShift)
-    setFormData(EMPTY_FORM)
+    try {
+      await onAddShift(newShift)
+      setFormData(EMPTY_FORM)
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to add shift')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -144,16 +162,24 @@ function ShiftForm({ onAddShift }) {
           </div>
         </label>
 
-        <button className="primary-button" type="submit">
-          Add shift
+        {errorMessage && (
+          <p className="form-error" role="alert">
+            {errorMessage}
+          </p>
+        )}
+
+        <button className="primary-button" type="submit" disabled={isSubmitting}>
+          {isSubmitting ? 'Saving...' : 'Add shift'}
         </button>
       </form>
     </section>
   )
 }
 
-function ShiftItem({ shift }) {
+// Displays one saved shift and provides a control for deleting it.
+function ShiftItem({ shift, onDeleteShift, deletingShiftId }) {
   const totalTips = shift.cashTips + shift.creditTips
+  const isDeleting = deletingShiftId === shift.id
   const formattedDate = new Date(`${shift.date}T00:00:00`).toLocaleDateString('en-US', {
     weekday: 'short',
     month: 'short',
@@ -176,11 +202,29 @@ function ShiftItem({ shift }) {
         <span>Total tips</span>
         <strong>${totalTips.toFixed(2)}</strong>
       </div>
+
+      <button
+        className="delete-button"
+        type="button"
+        disabled={deletingShiftId !== null}
+        onClick={() => onDeleteShift(shift.id)}
+        aria-label={`Delete shift from ${formattedDate}`}
+      >
+        {isDeleting ? 'Deleting...' : 'Delete'}
+      </button>
     </article>
   )
 }
 
-function ShiftHistory({ shifts }) {
+// Displays the loading, error, empty, or saved-shift state of the history panel.
+function ShiftHistory({
+  shifts,
+  isLoading,
+  errorMessage,
+  deleteError,
+  onDeleteShift,
+  deletingShiftId,
+}) {
   return (
     <section className="panel history-panel" aria-labelledby="shift-history-title">
       <div className="section-heading">
@@ -191,7 +235,24 @@ function ShiftHistory({ shifts }) {
         <button className="text-button" type="button">View all</button>
       </div>
 
-      {shifts.length === 0 ? (
+      {deleteError && (
+        <p className="delete-error" role="alert">
+          {deleteError}
+        </p>
+      )}
+
+      {isLoading ? (
+        <div className="empty-state" aria-live="polite">
+          <h3>Loading shifts...</h3>
+          <p>Retrieving your saved shifts from AWS.</p>
+        </div>
+      ) : errorMessage ? (
+        <div className="empty-state" role="alert">
+          <div className="empty-icon" aria-hidden="true">!</div>
+          <h3>Unable to load shifts</h3>
+          <p>{errorMessage}</p>
+        </div>
+      ) : shifts.length === 0 ? (
         <div className="empty-state">
           <div className="empty-icon" aria-hidden="true">☕</div>
           <h3>No shifts recorded yet</h3>
@@ -200,7 +261,12 @@ function ShiftHistory({ shifts }) {
       ) : (
         <div className="shift-list">
           {shifts.map((shift) => (
-            <ShiftItem key={shift.id} shift={shift} />
+            <ShiftItem
+              key={shift.id}
+              shift={shift}
+              onDeleteShift={onDeleteShift}
+              deletingShiftId={deletingShiftId}
+            />
           ))}
         </div>
       )}
@@ -208,8 +274,47 @@ function ShiftHistory({ shifts }) {
   )
 }
 
+// Owns the shift data, communicates with the AWS API, and assembles the dashboard.
 function App() {
   const [shifts, setShifts] = useState([])
+  const [isLoadingShifts, setIsLoadingShifts] = useState(true)
+  const [shiftLoadError, setShiftLoadError] = useState('')
+  const [deletingShiftId, setDeletingShiftId] = useState(null)
+  const [deleteError, setDeleteError] = useState('')
+
+  // Load saved shifts from AWS once when the application starts.
+  useEffect(() => {
+    async function loadShifts() {
+      if (!API_URL) {
+        setShiftLoadError('VITE_API_URL is not configured')
+        setIsLoadingShifts(false)
+        return
+      }
+
+      try {
+        const response = await fetch(API_URL)
+        const responseData = await response.json()
+
+        if (!response.ok) {
+          throw new Error(responseData.error || 'Unable to load shifts')
+        }
+
+        if (!Array.isArray(responseData.shifts)) {
+          throw new Error('The API returned an invalid shift list')
+        }
+
+        setShifts(responseData.shifts)
+      } catch (error) {
+        setShiftLoadError(
+          error instanceof Error ? error.message : 'Unable to load shifts',
+        )
+      } finally {
+        setIsLoadingShifts(false)
+      }
+    }
+
+    loadShifts()
+  }, [])
 
   const totalTips = shifts.reduce(
     (sum, shift) => sum + shift.cashTips + shift.creditTips,
@@ -223,8 +328,71 @@ function App() {
 
   const tipsPerHour = totalHours > 0 ? totalTips / totalHours : 0
 
-  function handleAddShift(newShift) {
-    setShifts((currentShifts) => [...currentShifts, newShift])
+  async function handleAddShift(newShift) {
+    if (!API_URL) {
+      throw new Error('VITE_API_URL is not configured')
+    }
+
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(newShift),
+    })
+
+    const responseData = await response.json()
+
+    if (!response.ok) {
+      throw new Error(responseData.error || 'Unable to save shift')
+    }
+
+    setShifts((currentShifts) => [responseData.shift, ...currentShifts])
+  }
+
+  // Confirm the choice, delete the shift in AWS, and remove it from React state.
+  async function handleDeleteShift(shiftId) {
+    if (deletingShiftId !== null) {
+      return
+    }
+
+    const shouldDelete = window.confirm(
+      'Are you sure you want to delete this shift?',
+    )
+
+    if (!shouldDelete) {
+      return
+    }
+
+    setDeleteError('')
+
+    if (!API_URL) {
+      setDeleteError('VITE_API_URL is not configured')
+      return
+    }
+
+    setDeletingShiftId(shiftId)
+
+    try {
+      const response = await fetch(`${API_URL}/${encodeURIComponent(shiftId)}`, {
+        method: 'DELETE',
+      })
+      const responseData = await response.json()
+
+      if (!response.ok) {
+        throw new Error(responseData.error || 'Unable to delete shift')
+      }
+
+      setShifts((currentShifts) =>
+        currentShifts.filter((shift) => shift.id !== shiftId),
+      )
+    } catch (error) {
+      setDeleteError(
+        error instanceof Error ? error.message : 'Unable to delete shift',
+      )
+    } finally {
+      setDeletingShiftId(null)
+    }
   }
 
   return (
@@ -279,7 +447,14 @@ function App() {
 
         <div className="content-grid">
           <ShiftForm onAddShift={handleAddShift} />
-          <ShiftHistory shifts={shifts} />
+          <ShiftHistory
+            shifts={shifts}
+            isLoading={isLoadingShifts}
+            errorMessage={shiftLoadError}
+            deleteError={deleteError}
+            onDeleteShift={handleDeleteShift}
+            deletingShiftId={deletingShiftId}
+          />
         </div>
       </main>
     </div>

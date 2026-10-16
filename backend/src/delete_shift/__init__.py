@@ -1,0 +1,1 @@
+"""Delete-shift Lambda package."""
