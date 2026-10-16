@@ -176,9 +176,10 @@ function ShiftForm({ onAddShift }) {
   )
 }
 
-// Displays the date, times, and tip totals for one saved shift.
-function ShiftItem({ shift }) {
+// Displays one saved shift and provides a control for deleting it.
+function ShiftItem({ shift, onDeleteShift, deletingShiftId }) {
   const totalTips = shift.cashTips + shift.creditTips
+  const isDeleting = deletingShiftId === shift.id
   const formattedDate = new Date(`${shift.date}T00:00:00`).toLocaleDateString('en-US', {
     weekday: 'short',
     month: 'short',
@@ -201,12 +202,29 @@ function ShiftItem({ shift }) {
         <span>Total tips</span>
         <strong>${totalTips.toFixed(2)}</strong>
       </div>
+
+      <button
+        className="delete-button"
+        type="button"
+        disabled={deletingShiftId !== null}
+        onClick={() => onDeleteShift(shift.id)}
+        aria-label={`Delete shift from ${formattedDate}`}
+      >
+        {isDeleting ? 'Deleting...' : 'Delete'}
+      </button>
     </article>
   )
 }
 
 // Displays the loading, error, empty, or saved-shift state of the history panel.
-function ShiftHistory({ shifts, isLoading, errorMessage }) {
+function ShiftHistory({
+  shifts,
+  isLoading,
+  errorMessage,
+  deleteError,
+  onDeleteShift,
+  deletingShiftId,
+}) {
   return (
     <section className="panel history-panel" aria-labelledby="shift-history-title">
       <div className="section-heading">
@@ -216,6 +234,12 @@ function ShiftHistory({ shifts, isLoading, errorMessage }) {
         </div>
         <button className="text-button" type="button">View all</button>
       </div>
+
+      {deleteError && (
+        <p className="delete-error" role="alert">
+          {deleteError}
+        </p>
+      )}
 
       {isLoading ? (
         <div className="empty-state" aria-live="polite">
@@ -237,7 +261,12 @@ function ShiftHistory({ shifts, isLoading, errorMessage }) {
       ) : (
         <div className="shift-list">
           {shifts.map((shift) => (
-            <ShiftItem key={shift.id} shift={shift} />
+            <ShiftItem
+              key={shift.id}
+              shift={shift}
+              onDeleteShift={onDeleteShift}
+              deletingShiftId={deletingShiftId}
+            />
           ))}
         </div>
       )}
@@ -250,6 +279,8 @@ function App() {
   const [shifts, setShifts] = useState([])
   const [isLoadingShifts, setIsLoadingShifts] = useState(true)
   const [shiftLoadError, setShiftLoadError] = useState('')
+  const [deletingShiftId, setDeletingShiftId] = useState(null)
+  const [deleteError, setDeleteError] = useState('')
 
   // Load saved shifts from AWS once when the application starts.
   useEffect(() => {
@@ -319,6 +350,51 @@ function App() {
     setShifts((currentShifts) => [responseData.shift, ...currentShifts])
   }
 
+  // Confirm the choice, delete the shift in AWS, and remove it from React state.
+  async function handleDeleteShift(shiftId) {
+    if (deletingShiftId !== null) {
+      return
+    }
+
+    const shouldDelete = window.confirm(
+      'Are you sure you want to delete this shift?',
+    )
+
+    if (!shouldDelete) {
+      return
+    }
+
+    setDeleteError('')
+
+    if (!API_URL) {
+      setDeleteError('VITE_API_URL is not configured')
+      return
+    }
+
+    setDeletingShiftId(shiftId)
+
+    try {
+      const response = await fetch(`${API_URL}/${encodeURIComponent(shiftId)}`, {
+        method: 'DELETE',
+      })
+      const responseData = await response.json()
+
+      if (!response.ok) {
+        throw new Error(responseData.error || 'Unable to delete shift')
+      }
+
+      setShifts((currentShifts) =>
+        currentShifts.filter((shift) => shift.id !== shiftId),
+      )
+    } catch (error) {
+      setDeleteError(
+        error instanceof Error ? error.message : 'Unable to delete shift',
+      )
+    } finally {
+      setDeletingShiftId(null)
+    }
+  }
+
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -375,6 +451,9 @@ function App() {
             shifts={shifts}
             isLoading={isLoadingShifts}
             errorMessage={shiftLoadError}
+            deleteError={deleteError}
+            onDeleteShift={handleDeleteShift}
+            deletingShiftId={deletingShiftId}
           />
         </div>
       </main>
